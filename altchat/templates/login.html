@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login – ALTCHAT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>ALTCHAT v2.0.0</h1>
+  <form method="post">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+    {% if request.path == '/register' %}
+    <input type="text" name="code" placeholder="Admin Code" required>
+    {% endif %}
+    <button type="submit">{{ 'Register' if request.path == '/register' else 'Login' }}</button>
+  </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if request.path == '/login' %}
+  <p>No account? <a href="{{ url_for('register') }}">Register</a></p>
+  {% else %}
+  <p>Have an account? <a href="{{ url_for('login') }}">Login</a></p>
+  {% endif %}
+</body>
+</html>
