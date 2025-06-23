@@ -1,0 +1,6 @@
+body { background: #121212; color: #eee; font-family: 'Roboto Mono', monospace; }
+#chat-container { display: flex; }
+#users { width: 200px; border-right: 1px solid #444; padding: 5px; }
+#chat { flex: 1; padding: 5px; }
+#messages { height: 400px; overflow-y: scroll; border: 1px solid #444; margin-bottom: 5px; padding: 5px; }
+.error { color: hotpink; }

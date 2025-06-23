@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Profile – ALTCHAT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>{{ username }}'s Profile</h1>
+  <form method="post">
+    <input type="color" name="color" value="{{ color }}">
+    <button type="submit">Save</button>
+  </form>
+</body>
+</html>
