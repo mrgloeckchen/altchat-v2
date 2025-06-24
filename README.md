@@ -128,7 +128,7 @@ The bot delivers it via WhatsApp.
 
 ## 📷 Screenshot
 
-*(Drop a `/altchat/screenshots/notify.jpg` in root to display here)*
+`/altchat/screenshots/notify.jpg`
 
 ---
 
