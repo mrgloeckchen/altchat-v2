@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat – ALTCHAT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div id="chat-container">
+    <div id="users">
+      <h3>Online</h3>
+      <ul id="user-list"></ul>
+    </div>
+    <div id="chat">
+      <div id="messages"></div>
+      <form id="chat-form">
+        <input type="text" id="m" autocomplete="off" placeholder="Message" />
+        <label><input type="checkbox" id="alt-toggle"> Altsprache</label>
+        <button>Send</button>
+      </form>
+    </div>
+  </div>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+  <script>
+    const username = {{ username|tojson }};
+    const color = {{ color|tojson }};
+  </script>
+</body>
+</html>
