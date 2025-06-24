@@ -1,11 +1,10 @@
-# 🟢 ALTCHAT v2.0.0 Base
+# 🟢 ALTCHAT v2.0.0
 
 *(Based on ALTCHAT v1.0.5 – now with full feature expansion groundwork)*
 
 AltChat is a private real-time webchat system with built-in WhatsApp notifications, terminal-style UI, and custom encoding.
 
-> ⚠️ This is the BASE release of v2 – building on the stable v1.0.5
-> All new features (DMs, Roles, Profiles etc.) will be added step-by-step.
+AltChat now includes direct messages, a basic admin panel and profile editing.
 
 ---
 
@@ -108,7 +107,7 @@ The bot delivers it via WhatsApp.
 
 ---
 
-## 🎨 Features in this BASE version
+## 🎨 Features in this version
 
 ✅ Flask + Socket.IO real-time chat
 ✅ Custom user color system
@@ -123,6 +122,9 @@ The bot delivers it via WhatsApp.
 ✅ Cache-busting for static files
 ✅ QR Pairing for WhatsApp
 ✅ Simple bot API: `/send` with `number` & `message`
+✅ Direct Messaging system
+✅ Profile editing with status and color
+✅ Simple admin panel
 
 ---
 

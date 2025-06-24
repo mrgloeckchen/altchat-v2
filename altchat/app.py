@@ -1,11 +1,13 @@
 import os
 import sqlite3
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, session, url_for, g
 from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 
 DATABASE = os.path.join(os.path.dirname(__file__), 'database', 'altchat.sqlite3')
 ADMIN_CODE = os.environ.get('ALTCHAT_ADMIN_CODE', 'admin123')
+ALTCHAT_VERSION = 'v2.0.0'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('ALTCHAT_SECRET', 'changeme')
@@ -34,8 +36,25 @@ def init_db():
         'username TEXT UNIQUE NOT NULL,'
         'password TEXT NOT NULL,'
         'role TEXT NOT NULL DEFAULT "User",'
-        'color TEXT NOT NULL DEFAULT "#00ff00"'
+        'color TEXT NOT NULL DEFAULT "#00ff00",'
+        'status TEXT NOT NULL DEFAULT "available"'
         ')' )
+    db.execute(
+        'CREATE TABLE IF NOT EXISTS friend ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        'user_id INTEGER NOT NULL,'
+        'friend_id INTEGER NOT NULL,'
+        'status TEXT NOT NULL DEFAULT "pending"'
+        ')')
+    db.execute(
+        'CREATE TABLE IF NOT EXISTS message ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        'sender_id INTEGER NOT NULL,'
+        'receiver_id INTEGER NOT NULL,'
+        'text TEXT NOT NULL,'
+        'created TIMESTAMP NOT NULL,'
+        'read INTEGER NOT NULL DEFAULT 0'
+        ')')
     db.commit()
 
 # ----- Helper -----
@@ -53,7 +72,7 @@ def register():
         password = request.form['password']
         code = request.form.get('code', '')
         if code != ADMIN_CODE:
-            return render_template('register.html', error='Invalid admin code')
+            return render_template('register.html', error='Invalid admin code', version=ALTCHAT_VERSION)
         db = get_db()
         try:
             db.execute(
@@ -62,9 +81,9 @@ def register():
             )
             db.commit()
         except sqlite3.IntegrityError:
-            return render_template('register.html', error='Username taken')
+            return render_template('register.html', error='Username taken', version=ALTCHAT_VERSION)
         return redirect(url_for('login'))
-    return render_template('register.html')
+    return render_template('register.html', version=ALTCHAT_VERSION)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -79,8 +98,8 @@ def login():
             session['color'] = user['color']
             session['role'] = user['role']
             return redirect(url_for('chat'))
-        return render_template('login.html', error='Invalid credentials')
-    return render_template('login.html')
+        return render_template('login.html', error='Invalid credentials', version=ALTCHAT_VERSION)
+    return render_template('login.html', version=ALTCHAT_VERSION)
 
 @app.route('/logout')
 def logout():
@@ -99,22 +118,74 @@ def index():
 def chat():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return render_template('chat.html', username=session['username'], color=session['color'])
+    return render_template('chat.html', username=session['username'], color=session['color'], version=ALTCHAT_VERSION)
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    db = get_db()
+    if request.method == 'POST':
+        color = request.form.get('color', '#00ff00')
+        if color.lower() in ('#ff0000', 'hotpink'):
+            user = db.execute('SELECT color, status FROM user WHERE id = ?', (session['user_id'],)).fetchone()
+            return render_template('profile.html', username=session['username'], color=user['color'], status=user['status'], error='Color not allowed', version=ALTCHAT_VERSION)
+        status = request.form.get('status', 'available')
+        db.execute('UPDATE user SET color = ?, status = ? WHERE id = ?', (color, status, session['user_id']))
+        db.commit()
+        session['color'] = color
+    user = db.execute('SELECT color, status FROM user WHERE id = ?', (session['user_id'],)).fetchone()
+    return render_template('profile.html', username=session['username'], color=user['color'], status=user['status'], version=ALTCHAT_VERSION)
+
+@app.route('/dm/<username>')
+def direct_message(username):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    db = get_db()
+    other = db.execute('SELECT id FROM user WHERE username = ?', (username,)).fetchone()
+    if not other:
+        return redirect(url_for('chat'))
+    return render_template('dm.html', other=username, version=ALTCHAT_VERSION)
+
+@app.route('/admin')
+def admin():
+    if session.get('role') != 'Admin':
+        return redirect(url_for('chat'))
+    db = get_db()
+    users = db.execute('SELECT id, username, role FROM user').fetchall()
+    return render_template('admin.html', users=users, version=ALTCHAT_VERSION)
+
+@app.route('/add_friend/<username>')
+def add_friend(username):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    db = get_db()
+    other = db.execute('SELECT id FROM user WHERE username = ?', (username,)).fetchone()
+    if other:
+        db.execute('INSERT INTO friend (user_id, friend_id, status) VALUES (?,?,?)',
+                   (session['user_id'], other['id'], 'pending'))
+        db.commit()
+    return redirect(url_for('chat'))
 
 # ----- Socket.IO -----
 
 online_users = set()
+user_sid = {}
 
 @socketio.on('connect')
 def handle_connect():
     if 'username' in session:
-        online_users.add(session['username'])
+        username = session['username']
+        online_users.add(username)
+        user_sid[username] = request.sid
         emit('user_list', list(online_users), broadcast=True)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     if 'username' in session:
-        online_users.discard(session['username'])
+        username = session['username']
+        online_users.discard(username)
+        user_sid.pop(username, None)
         emit('user_list', list(online_users), broadcast=True)
 
 @socketio.on('chat_message')
@@ -128,6 +199,32 @@ def handle_chat(data):
         'color': session.get('color', '#00ff00'),
         'text': text
     }, broadcast=True)
+
+@socketio.on('direct_message')
+def handle_dm(data):
+    text = data.get('text', '')
+    receiver = data.get('to')
+    db = get_db()
+    user = db.execute('SELECT id FROM user WHERE username = ?', (receiver,)).fetchone()
+    if not user:
+        return
+    sender_id = session.get('user_id')
+    db.execute('INSERT INTO message (sender_id, receiver_id, text, created) VALUES (?,?,?,?)',
+               (sender_id, user['id'], text, datetime.utcnow()))
+    db.commit()
+    emit('direct_message', {
+        'from': session.get('username'),
+        'to': receiver,
+        'text': text
+    }, room=request.sid)
+    # send to receiver if online
+    sid = user_sid.get(receiver)
+    if sid:
+        emit('direct_message', {
+            'from': session.get('username'),
+            'to': receiver,
+            'text': text
+        }, room=sid)
 
 # ----- Main -----
 

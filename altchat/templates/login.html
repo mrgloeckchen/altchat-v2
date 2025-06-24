@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>ALTCHAT v2.0.0</h1>
+  <h1>ALTCHAT {{ version }}</h1>
   <form method="post">
     <input type="text" name="username" placeholder="Username" required>
     <input type="password" name="password" placeholder="Password" required>
@@ -21,5 +21,6 @@
   {% else %}
   <p>Have an account? <a href="{{ url_for('login') }}">Login</a></p>
   {% endif %}
+  <div id="version">{{ version }}</div>
 </body>
 </html>

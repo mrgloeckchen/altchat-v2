@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DM – ALTCHAT</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h2>Direct Message with {{ other }}</h2>
+  <div id="messages"></div>
+  <form id="chat-form">
+    <input type="text" id="m" autocomplete="off" placeholder="Message" />
+    <button>Send</button>
+  </form>
+  <div id="version">{{ version }}</div>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+  <script>
+    const dmTarget = {{ other|tojson }};
+  </script>
+</body>
+</html>

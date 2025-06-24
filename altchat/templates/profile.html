@@ -9,7 +9,10 @@
   <h1>{{ username }}'s Profile</h1>
   <form method="post">
     <input type="color" name="color" value="{{ color }}">
+    <input type="text" name="status" value="{{ status }}" placeholder="Status">
     <button type="submit">Save</button>
   </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <div id="version">{{ version }}</div>
 </body>
 </html>
