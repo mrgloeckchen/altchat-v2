@@ -116,19 +116,19 @@ The bot delivers it via WhatsApp.
 
 ## 🎨 Features in this BASE version
 
-✅ Flask + Socket.IO real-time chat,
-✅ Custom user color system,
-✅ Altsprache view toggle (encoded chat),
-✅ WhatsApp Express bot (QR login, session save),
-✅ Login & Register system (with Admin-Code),
-✅ SQLite-based persistence,
-✅ Live user list,
-✅ Dark/Whitemode + TikTok sans,
-✅ Responsive UI groundwork,
-✅ Admin/Mod/User roles (Admin Panel),
-✅ Cache-busting for static files,
-✅ QR Pairing for WhatsApp,
-✅ Simple bot API: `/send` with `number` & `message`,
+* ✅ Flask + Socket.IO real-time chat,
+* ✅ Custom user color system,
+* ✅ Altsprache view toggle (encoded chat),
+* ✅ WhatsApp Express bot (QR login, session save),
+* ✅ Login & Register system (with Admin-Code),
+* ✅ SQLite-based persistence,
+* ✅ Live user list,
+* ✅ Dark/Whitemode + TikTok sans,
+* ✅ Responsive UI groundwork,
+* ✅ Admin/Mod/User roles (Admin Panel),
+* ✅ Cache-busting for static files,
+* ✅ QR Pairing for WhatsApp,
+* ✅ Simple bot API: `/send` with `number` & `message`,
 
 ---
 
