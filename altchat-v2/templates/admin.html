@@ -130,6 +130,7 @@
                 <button onclick="permBan('{{ user.username }}')">Ban</button>
                 <button onclick="promoteMod('{{ user.username }}')">Mod</button>
                 <button onclick="promoteAdmin('{{ user.username }}')">Admin</button>
+                <button onclick="setUserRole('{{ user.username }}')">User</button>
               {% endif %}
             {% endif %}
           {% else %}
@@ -150,11 +151,6 @@
     </div>
   </div>
 
-<script>
-    from database import (
-    init_db, delete_user, get_all_user_phones, ban_user, temp_ban_user, unban_user, reset_user_password, rename_user, toggle_mod_status, promote_to_admin,
-    )
-</script>
 
   <script>
     function closeModal() {
@@ -219,6 +215,7 @@
         sendAction('promote_admin', username);
       }
     }
+    function setUserRole(username) { sendAction('set_role_user', username); }
 
     window.onclick = function(event) {
       const modal = document.getElementById('historyModal');
