@@ -537,9 +537,11 @@ def handle_join(data):
     join_room(room)
     print(f"[SOCKET] {username} joined room: {room}")
 
-    if room == 'main_room':
+    if username not in online_users:
         online_users.add(username)
         emit('user_update', list(online_users), broadcast=True)
+
+    if room == 'main_room':
         emit('message', {
             'username': 'System',
             'message': f'{username} ist beigetreten.',
@@ -552,16 +554,21 @@ def handle_join(data):
 @socketio.on('leave')
 def handle_leave(data):
     username = session.get('username')
+    room = data.get('room')
     if username:
         online_users.discard(username)
-        leave_room('main_room')
         emit('user_update', list(online_users), broadcast=True)
-        emit('message', {
-            'username': 'System',
-            'message': f'{username} hat den Chat verlassen.',
-            'color': '#999999',
-            'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-        }, room='main_room')
+
+        if room:
+            leave_room(room)
+
+        if room == 'main_room':
+            emit('message', {
+                'username': 'System',
+                'message': f'{username} hat den Chat verlassen.',
+                'color': '#999999',
+                'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+            }, room='main_room')
 
 def monitor_inactive_users():
     while True:

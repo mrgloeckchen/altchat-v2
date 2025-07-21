@@ -434,7 +434,7 @@
     });
 
     window.addEventListener('beforeunload', () => {
-      socket.emit('leave', { username });
+      socket.emit('leave', { username, room });
     });
 
     const hamburgerBtn = document.getElementById('hamburgerBtn');
