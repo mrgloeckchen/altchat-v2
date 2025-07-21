@@ -383,7 +383,7 @@
       toggleMessageDisplay(decodeToggle.checked);
     });
 
-    socket.emit('join', { username });
+    socket.emit('join', { username, room });
 
     socket.on('message', (data) => {
       const userColor =
@@ -425,7 +425,7 @@
     messageForm.addEventListener('submit', e => {
       e.preventDefault();
       if (!input.value.trim()) return;
-      socket.emit('message', { message: input.value });
+      socket.emit('message', { message: input.value, room });
       input.value = '';
     });
 

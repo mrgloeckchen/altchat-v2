@@ -639,15 +639,7 @@ def handle_message(data):
         if len(chat_history[room]) > 50:
             chat_history[room] = chat_history[room][-50:]
 
-        user1, user2 = room.split("___")
-        conn = sqlite3.connect("chat.db")
-        c = conn.cursor()
-        c.execute("""
-            INSERT INTO private_messages (sender, receiver, message, timestamp)
-            VALUES (?, ?, ?, ?)
-        """, (username, user2 if username == user1 else user1, formatted_message, timestamp))
-        conn.commit()
-        conn.close()
+        save_private_message(room, username, formatted_message)
 
     emit('message', {
         "username": username,
