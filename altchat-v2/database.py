@@ -1,5 +1,6 @@
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
 import os
 
 DB_PATH = 'users.db'
@@ -40,6 +41,13 @@ def init_altchat_tables():
             username TEXT PRIMARY KEY,
             bio TEXT DEFAULT '',
             profile_pic TEXT DEFAULT '/static/profile_pics/default.png'
+        )
+    ''')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS bans (
+            username TEXT PRIMARY KEY,
+            until TEXT
         )
     ''')
 
@@ -124,16 +132,48 @@ def get_all_users_with_roles():
     } for row in rows]
 
 def ban_user(username):
-    # Dummy
-    pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO bans (username, until) VALUES (?, ?)',
+              (username, 'perm'))
+    conn.commit()
+    conn.close()
 
 def temp_ban_user(username, duration):
-    # Dummy
-    pass
+    until = (datetime.now() + timedelta(seconds=duration)).isoformat()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO bans (username, until) VALUES (?, ?)',
+              (username, until))
+    conn.commit()
+    conn.close()
 
 def unban_user(username):
-    # Dummy
-    pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM bans WHERE username = ?', (username,))
+    conn.commit()
+    conn.close()
+
+def is_user_banned(username):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT until FROM bans WHERE username = ?', (username,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return False
+    until = row[0]
+    if until == 'perm':
+        return True
+    try:
+        expiry = datetime.fromisoformat(until)
+    except ValueError:
+        return False
+    if expiry <= datetime.now():
+        unban_user(username)
+        return False
+    return True
 
 def reset_user_password(username, new_password):
     conn = sqlite3.connect(DB_PATH)

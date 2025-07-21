@@ -17,6 +17,7 @@ from database import (
     promote_to_admin, log_admin_action, get_user_history,
     set_user_color, get_user_color_from_db,
     update_user_status, get_user_status, set_user_dnd, get_user_dnd, init_altchat_tables,
+    is_user_banned,
 )
 from random import choice
 
@@ -165,6 +166,9 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         if verify_user(username, password):
+            if is_user_banned(username):
+                flash('User ist gebannt!')
+                return redirect(url_for('login'))
             session['username'] = username
             update_user_status(username, "online")
             set_user_dnd(username, False)
@@ -345,6 +349,107 @@ def user_history(username):
         return jsonify({'error': 'Forbidden'}), 403
     history = get_user_history(username)
     return jsonify({'history': history})
+
+@app.route('/temp_ban/<username>', methods=['POST'])
+def route_temp_ban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    temp_ban_user(username, 86400)
+    log_admin_action(session['username'], 'temp ban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/unban/<username>', methods=['POST'])
+def route_unban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    unban_user(username)
+    log_admin_action(session['username'], 'unban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/perm_ban/<username>', methods=['POST'])
+def route_perm_ban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    ban_user(username)
+    log_admin_action(session['username'], 'perm ban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/kick/<username>', methods=['POST'])
+def route_kick(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    online_users.discard(username)
+    update_user_status(username, 'offline')
+    socketio.emit('user_update', list(online_users), broadcast=True)
+    log_admin_action(session['username'], 'kick', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/reset_password/<username>', methods=['POST'])
+def route_reset_password(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    new_pw = request.get_json().get('password')
+    if not new_pw:
+        return jsonify({'status': 'invalid'}), 400
+    reset_user_password(username, new_pw)
+    log_admin_action(session['username'], 'reset password', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/rename_user/<username>', methods=['POST'])
+def route_rename_user(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    new_name = request.get_json().get('new_username')
+    if not new_name:
+        return jsonify({'status': 'invalid'}), 400
+    rename_user(username, new_name)
+    log_admin_action(session['username'], f'rename to {new_name}', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/set_color/<username>', methods=['POST'])
+def route_set_color(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    color = request.get_json().get('color')
+    if not color:
+        return jsonify({'status': 'invalid'}), 400
+    set_user_color(username, color)
+    log_admin_action(session['username'], f'set color to {color}', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/promote_mod/<username>', methods=['POST'])
+def route_promote_mod(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) != 'admin':
+        return jsonify({'status': 'forbidden'}), 403
+    toggle_mod_status(username)
+    log_admin_action(session['username'], 'toggle mod', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/promote_admin/<username>', methods=['POST'])
+def route_promote_admin(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) != 'admin':
+        return jsonify({'status': 'forbidden'}), 403
+    promote_to_admin(username)
+    log_admin_action(session['username'], 'promote admin', username)
+    return jsonify({'status': 'success'})
 
 @app.route('/set_status/<status>')
 def set_status(status):
