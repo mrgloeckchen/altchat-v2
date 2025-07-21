@@ -118,7 +118,10 @@ def get_all_users_with_roles():
     c.execute('SELECT username, role FROM users')
     rows = c.fetchall()
     conn.close()
-    return rows
+    return [{
+        'username': row[0],
+        'role': row[1] or 'user'
+    } for row in rows]
 
 def ban_user(username):
     # Dummy
