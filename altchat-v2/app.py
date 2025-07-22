@@ -15,8 +15,9 @@ from database import (
     get_all_user_phones, get_role, ban_user, temp_ban_user, unban_user,
     reset_user_password, rename_user, set_user_color, toggle_mod_status,
     promote_to_admin, log_admin_action, get_user_history,
-    set_user_color, get_user_color_from_db,
+    set_user_color, get_user_color_from_db, set_user_role,
     update_user_status, get_user_status, set_user_dnd, get_user_dnd, init_altchat_tables,
+    is_user_banned,
 )
 from random import choice
 
@@ -31,25 +32,14 @@ socketio = SocketIO(
     transports=["websocket", "polling"]  # ✅ wichtig!
 )
 
-
 logging.basicConfig(level=logging.DEBUG)
-
-app = Flask(__name__)
-init_altchat_tables()
-app.secret_key = os.urandom(24)
-
-socketio = SocketIO(
-    app,
-    async_mode='eventlet',
-    cors_allowed_origins="*",
-    max_http_buffer_size=1000000  # Diese Zeile wurde ergänzt!
-)
 
 
 ADMIN_PASSWORD = "80024042"
 online_users = set()
-last_seen = {}  
+last_seen = {}
 USER_COLORS = {}
+user_sids = {}
 COLOR_PALETTE = ["#00ff00", "#66ff66", "#00cc00", "#33ff33", "#FF69B4", "#3333FF", "#FF69B4", "#FF0000"]
 chat_history = {"main": []}
 MAX_PN_MESSAGES = 50
@@ -98,12 +88,6 @@ def load_private_messages(room, limit=50):
     rows = c.fetchall()
     conn.close()
     return rows[::-1]
-
-def get_user_color(username):
-    if username not in USER_COLORS:
-        USER_COLORS[username] = choice(COLOR_PALETTE)
-    return USER_COLORS[username]
-
 
 def to_alt_language(text):
     mapping = {
@@ -165,9 +149,11 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         if verify_user(username, password):
+            if is_user_banned(username):
+                flash('User ist gebannt!')
+                return redirect(url_for('login'))
             session['username'] = username
             update_user_status(username, "online")
-            set_user_dnd(username, False)
             return redirect(url_for('mychats'))
         else:
             flash('Login fehlgeschlagen!')
@@ -225,8 +211,6 @@ def chat():
 
     username = session['username']
     update_user_status(username, "online")
-    if not get_user_dnd(username):  
-        set_user_dnd(username, False)
 
     target = request.args.get("user")
 
@@ -237,7 +221,8 @@ def chat():
             messages.append({
                 "timestamp": timestamp,
                 "username": uname,
-                "message": message
+                "message": message,
+                "color": get_user_color_from_db(uname)
             })
 
         return render_template('chat.html',
@@ -276,7 +261,8 @@ def chat():
         messages.append({
             "timestamp": timestamp,
             "username": uname,
-            "message": message
+            "message": message,
+            "color": get_user_color_from_db(uname)
         })
 
     if not target or target == "main":
@@ -345,6 +331,120 @@ def user_history(username):
         return jsonify({'error': 'Forbidden'}), 403
     history = get_user_history(username)
     return jsonify({'history': history})
+
+@app.route('/temp_ban/<username>', methods=['POST'])
+def route_temp_ban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    temp_ban_user(username, 86400)
+    log_admin_action(session['username'], 'temp ban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/unban/<username>', methods=['POST'])
+def route_unban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    unban_user(username)
+    log_admin_action(session['username'], 'unban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/perm_ban/<username>', methods=['POST'])
+def route_perm_ban(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    ban_user(username)
+    log_admin_action(session['username'], 'perm ban', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/kick/<username>', methods=['POST'])
+def route_kick(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    online_users.discard(username)
+    update_user_status(username, 'offline')
+    sid = user_sids.pop(username, None)
+    socketio.emit('user_update', list(online_users), broadcast=True)
+    if sid:
+        socketio.emit('force_logout', to=sid)
+    log_admin_action(session['username'], 'kick', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/reset_password/<username>', methods=['POST'])
+def route_reset_password(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    new_pw = request.get_json().get('password')
+    if not new_pw:
+        return jsonify({'status': 'invalid'}), 400
+    reset_user_password(username, new_pw)
+    log_admin_action(session['username'], 'reset password', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/rename_user/<username>', methods=['POST'])
+def route_rename_user(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    new_name = request.get_json().get('new_username')
+    if not new_name:
+        return jsonify({'status': 'invalid'}), 400
+    rename_user(username, new_name)
+    log_admin_action(session['username'], f'rename to {new_name}', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/set_color/<username>', methods=['POST'])
+def route_set_color(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) not in ['admin', 'mod']:
+        return jsonify({'status': 'forbidden'}), 403
+    color = request.get_json().get('color')
+    if not color:
+        return jsonify({'status': 'invalid'}), 400
+    set_user_color(username, color)
+    log_admin_action(session['username'], f'set color to {color}', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/promote_mod/<username>', methods=['POST'])
+def route_promote_mod(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) != 'admin':
+        return jsonify({'status': 'forbidden'}), 403
+    toggle_mod_status(username)
+    log_admin_action(session['username'], 'toggle mod', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/promote_admin/<username>', methods=['POST'])
+def route_promote_admin(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) != 'admin':
+        return jsonify({'status': 'forbidden'}), 403
+    promote_to_admin(username)
+    log_admin_action(session['username'], 'promote admin', username)
+    return jsonify({'status': 'success'})
+
+@app.route('/set_role_user/<username>', methods=['POST'])
+def route_set_role_user(username):
+    if 'username' not in session:
+        return jsonify({'status': 'unauthorized'}), 403
+    if get_role(session['username']) != 'admin':
+        return jsonify({'status': 'forbidden'}), 403
+    set_user_role(username, 'user')
+    log_admin_action(session['username'], 'set role user', username)
+    return jsonify({'status': 'success'})
 
 @app.route('/set_status/<status>')
 def set_status(status):
@@ -535,11 +635,16 @@ def handle_join(data):
         return
 
     join_room(room)
+    user_sids[username] = request.sid
     print(f"[SOCKET] {username} joined room: {room}")
 
-    if room == 'main_room':
+    if username not in online_users:
         online_users.add(username)
         emit('user_update', list(online_users), broadcast=True)
+    else:
+        emit('user_update', list(online_users), to=request.sid)
+
+    if room == 'main_room':
         emit('message', {
             'username': 'System',
             'message': f'{username} ist beigetreten.',
@@ -552,16 +657,22 @@ def handle_join(data):
 @socketio.on('leave')
 def handle_leave(data):
     username = session.get('username')
+    room = data.get('room')
     if username:
         online_users.discard(username)
-        leave_room('main_room')
+        user_sids.pop(username, None)
         emit('user_update', list(online_users), broadcast=True)
-        emit('message', {
-            'username': 'System',
-            'message': f'{username} hat den Chat verlassen.',
-            'color': '#999999',
-            'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-        }, room='main_room')
+
+        if room:
+            leave_room(room)
+
+        if room == 'main_room':
+            emit('message', {
+                'username': 'System',
+                'message': f'{username} hat den Chat verlassen.',
+                'color': '#999999',
+                'timestamp': datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+            }, room='main_room')
 
 def monitor_inactive_users():
     while True:
@@ -588,8 +699,9 @@ def handle_keep_alive():
 @socketio.on('typing')
 def handle_typing(data):
     username = session.get('username')
+    room = data.get('room', 'main_room')
     if username:
-        emit('typing', {'username': username}, room='main', include_self=False)
+        emit('typing', {'username': username}, room=room, include_self=False)
 
 @socketio.on('message')
 def handle_message(data):
@@ -639,21 +751,14 @@ def handle_message(data):
         if len(chat_history[room]) > 50:
             chat_history[room] = chat_history[room][-50:]
 
-        user1, user2 = room.split("___")
-        conn = sqlite3.connect("chat.db")
-        c = conn.cursor()
-        c.execute("""
-            INSERT INTO private_messages (sender, receiver, message, timestamp)
-            VALUES (?, ?, ?, ?)
-        """, (username, user2 if username == user1 else user1, formatted_message, timestamp))
-        conn.commit()
-        conn.close()
+        save_private_message(room, username, formatted_message)
 
     emit('message', {
         "username": username,
         "message": formatted_message,
         "timestamp": timestamp,
-        "room": room
+        "room": room,
+        "color": get_user_color_from_db(username)
     }, room=room)
 
     all_users = get_all_usernames()
@@ -691,5 +796,5 @@ if __name__ == '__main__':
     socketio.run(
         app,
         host='0.0.0.0',
-        port=5002
+        port=5000
     )

@@ -12,27 +12,35 @@ AltChat is a private real-time webchat system with built-in WhatsApp notificatio
 ## 📁 Project Structure
 
 ```
-altchat-v2/
-├── altchat/
+├── altchat-v2
 │   ├── app.py
-│   ├── templates/
+│   ├── chat.db
+│   ├── database.py
+│   ├── static
+│   │   ├── favicon.ico
+│   │   ├── logo.gif
+│   │   └── profile_pics
+│   │       ├── default.png
+│   │       └── mainroom.gif
+│   ├── templates
+│   │   ├── 404.html
+│   │   ├── 500.html
+│   │   ├── admin.html
+│   │   ├── chat.html
+│   │   ├── friend_requests.html
 │   │   ├── login.html
+│   │   ├── logout.html
+│   │   ├── mychats.html
+│   │   ├── profile.html
 │   │   ├── register.html
-│   │   └── chat.html
-│   └── static/
-│       ├── style.css
-│       ├── scripts.js
-│       └── logo.png
-│
-├── whatsapp-bot/
-│   ├── bot.cjs
-│   ├── package.json
-│   ├── package-lock.json
-│   └── auth_info/       # Created automatically after first run
-│
+│   │   └── wartungsarbeiten.html
+│   └── users.db
+├── README.md
 ├── requirements.txt
-├── .gitignore
-└── README.md
+└── whatsapp-bot
+    ├── bot.cjs
+    ├── package.json
+    └── package-lock.json
 ```
 
 ---
@@ -94,14 +102,12 @@ python3 app.py
 
 ## 🔔 WhatsApp Notifications
 
-When someone is offline and receives a message,
-AltChat sends a POST to the local bot:
+If you are offline and someone tags you, you will receive a Whatsapp message,
 
 ```json
 {
   "number": "491234567890",
-  "message": "Neue Nachricht im AltChat von USER"
-}
+  "message": "Du wurdest von user getaggt"
 ```
 
 The bot delivers it via WhatsApp.
@@ -110,25 +116,25 @@ The bot delivers it via WhatsApp.
 
 ## 🎨 Features in this BASE version
 
-✅ Flask + Socket.IO real-time chat,
-✅ Custom user color system,
-✅ Altsprache™ view toggle (encoded chat),
-✅ WhatsApp Express bot (QR login, session save),
-✅ Login & Register system (with Admin-Code),
-✅ SQLite-based persistence,
-✅ Live user list,
-✅ Darkmode + Roboto Mono,
-✅ Responsive UI groundwork,
-✅ Admin/User roles (database level),
-✅ Cache-busting for static files,
-✅ QR Pairing for WhatsApp,
-✅ Simple bot API: `/send` with `number` & `message`,
+* ✅ Flask + Socket.IO real-time chat,
+* ✅ Custom user color system,
+* ✅ Altsprache view toggle (encoded chat),
+* ✅ WhatsApp Express bot (QR login, session save),
+* ✅ Login & Register system (with Admin-Code),
+* ✅ SQLite-based persistence,
+* ✅ Live user list,
+* ✅ Dark/Whitemode + TikTok sans,
+* ✅ Responsive UI groundwork,
+* ✅ Admin/Mod/User roles (Admin Panel),
+* ✅ Cache-busting for static files,
+* ✅ QR Pairing for WhatsApp,
+* ✅ Simple bot API: `/send` with `number` & `message`,
 
 ---
 
 ## 📷 Screenshot
 
-`/altchat/screenshots/notify.jpg`
+Comming soon!
 
 ---
 
@@ -157,7 +163,7 @@ Coming soon (next commits):
 * Direct Messaging system with friend requests
 * Admin panel with live actions
 * Profile system with color/foto/status
-* User search & public links
+* User search
 * Roles, kicks, bans, mod tools
-* Ping system & mute options
+* Ping system & DND Mode
 * Full WhatsApp notification logic for DMs, pings & system alerts
