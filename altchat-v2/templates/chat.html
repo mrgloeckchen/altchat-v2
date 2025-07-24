@@ -304,11 +304,7 @@
         {% for msg in messages %}
           {% set user = msg.username %}
           {% set message = msg.message %}
-          {% set color =
-            '#FF69B4' if user == 'Aleajoleen07' else
-            'red' if user == 'MrX' else
-            '#FF69B4' if user == 'ich_mag_tomaten' else
-            '#30D5C8' %}
+          {% set color = msg.color or get_user_color(user) or '#30D5C8' %}
           <div class="chat-message">
             <strong class="username" style="color: {{ color | default('#30D5C8') }}">{{ user }}</strong>
             <small>[{{ msg.timestamp }}]</small>: 
@@ -383,11 +379,11 @@
       toggleMessageDisplay(decodeToggle.checked);
     });
 
-    socket.emit('join', { username });
+    socket.emit('join', { username, room });
 
     socket.on('message', (data) => {
       const userColor =
-        data.username === "MrX" ? "red" 
+        data.username === "MrX" ? "red"
         : data.username === "Aleajoleen07" ? "pink"
         : data.color || "#FF69B4";
 
@@ -403,6 +399,10 @@
       `;
       chatBox.appendChild(msgElement);
       chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on('force_logout', () => {
+      window.location.href = '/logout';
     });
 
     socket.on('user_update', users => {
@@ -425,7 +425,7 @@
     messageForm.addEventListener('submit', e => {
       e.preventDefault();
       if (!input.value.trim()) return;
-      socket.emit('message', { message: input.value });
+      socket.emit('message', { message: input.value, room });
       input.value = '';
     });
 
@@ -434,7 +434,7 @@
     });
 
     window.addEventListener('beforeunload', () => {
-      socket.emit('leave', { username });
+      socket.emit('leave', { username, room });
     });
 
     const hamburgerBtn = document.getElementById('hamburgerBtn');

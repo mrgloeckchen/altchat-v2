@@ -1,11 +1,12 @@
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
+from datetime import datetime, timedelta
 
 DB_PATH = 'users.db'
 
+
 def init_db():
-    conn = sqlite3.connect(chat.db)
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -21,6 +22,7 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
 
 def init_altchat_tables():
     conn = sqlite3.connect(DB_PATH)
@@ -43,8 +45,26 @@ def init_altchat_tables():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS bans (
+            username TEXT PRIMARY KEY,
+            until TEXT
+        )
+    ''')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS admin_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor TEXT,
+            action TEXT,
+            target TEXT,
+            timestamp TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
+
 
 def add_user(username, password, phone):
     try:
@@ -54,13 +74,14 @@ def add_user(username, password, phone):
                   (username, password, phone))
         conn.commit()
         return True
-    except:
+    except Exception:
         return False
     finally:
         conn.close()
 
+
 def verify_user(username, password):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT password FROM users WHERE username = ?', (username,))
     row = c.fetchone()
@@ -68,6 +89,7 @@ def verify_user(username, password):
     if row:
         return row[0] == password
     return False
+
 
 def user_exists(username):
     conn = sqlite3.connect(DB_PATH)
@@ -77,6 +99,7 @@ def user_exists(username):
     conn.close()
     return exists
 
+
 def get_role(username):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -84,6 +107,7 @@ def get_role(username):
     row = c.fetchone()
     conn.close()
     return row[0] if row else 'user'
+
 
 def get_phone_by_username(username):
     conn = sqlite3.connect(DB_PATH)
@@ -93,6 +117,7 @@ def get_phone_by_username(username):
     conn.close()
     return row[0] if row else None
 
+
 def get_all_usernames():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -101,16 +126,20 @@ def get_all_usernames():
     conn.close()
     return [row[0] for row in rows]
 
+
 def get_user_by_username(username):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE username = ?', (username,))
     row = c.fetchone()
-    conn.close()
     if row:
-        keys = [description[0] for description in c.description]
-        return dict(zip(keys, row))
-    return None
+        keys = [d[0] for d in c.description]
+        user = dict(zip(keys, row))
+    else:
+        user = None
+    conn.close()
+    return user
+
 
 def get_all_users_with_roles():
     conn = sqlite3.connect(DB_PATH)
@@ -118,19 +147,56 @@ def get_all_users_with_roles():
     c.execute('SELECT username, role FROM users')
     rows = c.fetchall()
     conn.close()
-    return rows
+    return [{'username': row[0], 'role': row[1] or 'user'} for row in rows]
+
 
 def ban_user(username):
-    # Dummy
-    pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO bans (username, until) VALUES (?, ?)',
+              (username, 'perm'))
+    conn.commit()
+    conn.close()
+
 
 def temp_ban_user(username, duration):
-    # Dummy
-    pass
+    until = (datetime.now() + timedelta(seconds=duration)).isoformat()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT OR REPLACE INTO bans (username, until) VALUES (?, ?)',
+              (username, until))
+    conn.commit()
+    conn.close()
+
 
 def unban_user(username):
-    # Dummy
-    pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM bans WHERE username = ?', (username,))
+    conn.commit()
+    conn.close()
+
+
+def is_user_banned(username):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT until FROM bans WHERE username = ?', (username,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return False
+    until = row[0]
+    if until == 'perm':
+        return True
+    try:
+        expiry = datetime.fromisoformat(until)
+    except ValueError:
+        return False
+    if expiry <= datetime.now():
+        unban_user(username)
+        return False
+    return True
+
 
 def reset_user_password(username, new_password):
     conn = sqlite3.connect(DB_PATH)
@@ -140,12 +206,14 @@ def reset_user_password(username, new_password):
     conn.commit()
     conn.close()
 
+
 def rename_user(old_username, new_username):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('UPDATE users SET username = ? WHERE username = ?', (new_username, old_username))
     conn.commit()
     conn.close()
+
 
 def set_user_color(username, color):
     conn = sqlite3.connect(DB_PATH)
@@ -154,23 +222,34 @@ def set_user_color(username, color):
     conn.commit()
     conn.close()
 
+
 def get_user_color_from_db(username):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('SELECT color FROM users WHERE username = ?', (username,))
     row = c.fetchone()
     conn.close()
-    return row[0] if row else None
+    return row[0] if row and row[0] else None
+
 
 def log_admin_action(actor, action, target):
-    # Optional Logging
-    pass
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('INSERT INTO admin_log (actor, action, target, timestamp) VALUES (?, ?, ?, ?)',
+              (actor, action, target, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
-def get_user_history(username):
-    # Dummy
-    return []
 
-# ✅ NEU: STATUS + DND Handling
+def get_user_history(username, limit=20):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT timestamp, action FROM admin_log WHERE target = ? ORDER BY id DESC LIMIT ?',
+              (username, limit))
+    rows = c.fetchall()
+    conn.close()
+    return [{'timestamp': r[0], 'action': r[1]} for r in rows]
+
 
 def update_user_status(username, status):
     conn = sqlite3.connect(DB_PATH)
@@ -178,6 +257,7 @@ def update_user_status(username, status):
     c.execute('UPDATE users SET status = ? WHERE username = ?', (status, username))
     conn.commit()
     conn.close()
+
 
 def get_user_status(username):
     conn = sqlite3.connect(DB_PATH)
@@ -187,12 +267,14 @@ def get_user_status(username):
     conn.close()
     return row[0] if row else 'offline'
 
+
 def set_user_dnd(username, state: bool):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('UPDATE users SET dnd = ? WHERE username = ?', (1 if state else 0, username))
     conn.commit()
     conn.close()
+
 
 def get_user_dnd(username):
     conn = sqlite3.connect(DB_PATH)
@@ -202,77 +284,73 @@ def get_user_dnd(username):
     conn.close()
     return bool(row[0]) if row else False
 
+
 def delete_user(username):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        c.execute("DELETE FROM users WHERE username = ?", (username,))
+        c.execute('DELETE FROM users WHERE username = ?', (username,))
         conn.commit()
         return True
-    except Exception as e:
-        print(f"[DB] Fehler beim Löschen von '{username}': {e}")
+    except Exception:
         return False
     finally:
         conn.close()
 
+
 def get_all_user_phones():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        c.execute("SELECT phone FROM users")
+        c.execute('SELECT phone FROM users')
         result = c.fetchall()
-        return [row[0] for row in result if row[0]]  
-    except Exception as e:
-        print(f"[DB] Fehler beim Abrufen der Telefonnummern: {e}")
+        return [row[0] for row in result if row[0]]
+    except Exception:
         return []
     finally:
         conn.close()
 
+
 def toggle_mod_status(username):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        # Aktuelle Rolle holen
-        c.execute("SELECT role FROM users WHERE username = ?", (username,))
+        c.execute('SELECT role FROM users WHERE username = ?', (username,))
         row = c.fetchone()
         if not row:
-            print(f"[DB] User '{username}' nicht gefunden.")
             return False
-
         current_role = row[0]
-
         if current_role == 'admin':
-            print(f"[DB] Admin-Rolle darf nicht geändert werden.")
             return False
-
         new_role = 'mod' if current_role == 'user' else 'user'
-        c.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, username))
+        c.execute('UPDATE users SET role = ? WHERE username = ?', (new_role, username))
         conn.commit()
         return True
-    except Exception as e:
-        print(f"[DB] Fehler bei toggle_mod_status für '{username}': {e}")
+    except Exception:
         return False
     finally:
         conn.close()
+
 
 def promote_to_admin(username):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        # Sicherstellen, dass der User existiert
-        c.execute("SELECT role FROM users WHERE username = ?", (username,))
-        row = c.fetchone()
-        if not row:
-            print(f"[DB] Benutzer '{username}' nicht gefunden.")
+        c.execute('SELECT role FROM users WHERE username = ?', (username,))
+        if not c.fetchone():
             return False
-
-        # Rolle aktualisieren
         c.execute("UPDATE users SET role = 'admin' WHERE username = ?", (username,))
         conn.commit()
-        print(f"[DB] Benutzer '{username}' wurde zu Admin befördert.")
         return True
-    except Exception as e:
-        print(f"[DB] Fehler bei promote_to_admin für '{username}': {e}")
+    except Exception:
         return False
     finally:
         conn.close()
+
+
+def set_user_role(username, role):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('UPDATE users SET role = ? WHERE username = ?', (role, username))
+    conn.commit()
+    conn.close()
